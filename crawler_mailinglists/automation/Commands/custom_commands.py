@@ -54,6 +54,7 @@ _LINK_TEXT_BLACKLIST = ['unsubscribe', 'mobile', 'phone']
 
 # Keywords
 _KEYWORDS_EMAIL  = ['email', 'e-mail', 'subscribe', 'newsletter']
+_KEYWORDS_EMAIL_BLACKLIST = ['contact us']
 _KEYWORDS_SUBMIT = ['submit', 'sign up', 'sign-up', 'signup', 'sign me up', 'subscribe', 'register', 'join']
 _KEYWORDS_SELECT = ['yes', 'ny', 'new york', 'united states', 'usa', '1990']
 
@@ -126,7 +127,7 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
                 if not _is_internal_link(href, current_url, current_ps1):
                     continue
 
-                link_text = link.text.lower()
+                link_text = link.get_attribute('text').lower().strip()
 
                 # skip links with blacklisted text
                 blacklisted = False
@@ -235,7 +236,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
     newsletter_form = _find_newsletter_form(webdriver)
     if newsletter_form is None:
         # search for forms in iframes (if present)
-        iframes = webdriver.find_elements_by_tag_name('iframe')
+        iframes = webdriver.find_elements_by_tag_name('iframe') + webdriver.find_elements_by_tag_name('frame')
         for iframe in iframes:
             # switch to the iframe
             webdriver.switch_to_frame(iframe)
@@ -337,6 +338,11 @@ def _find_newsletter_form(webdriver):
             if s in form_html:
                 match = True
                 break
+
+        for s in _KEYWORDS_EMAIL_BLACKLIST:
+            if s in form_html:
+                match = False
+
         if not match:
             continue
 
