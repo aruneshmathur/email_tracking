@@ -95,10 +95,12 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
     # connect to the logger
     logger = loggingclient(*manager_params['logger_address'])
 
-    # try to find a newsletter form on the landing page
-    if debug: logger.debug('Attempting to find a newsletter form on the landing page')
+    # take a screenshot, and try to find a newsletter form on the landing page
+    if debug:
+        save_screenshot(str(visit_id) + '_landing_page', webdriver, browser_params, manager_params)
+
     if _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
-        if debug: logger.debug('Found and submitted a newsletter form on the landing page')
+        if debug: logger.debug('Done searching and submitting forms, exiting')
         return
 
     if debug: logger.debug('Could not find and submit a newsletter form on the landing page; scanning more pages..')
@@ -275,16 +277,19 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
             logger.debug('None of the iframes have newsletter forms')
             return False
     elif debug:
-        logger.debug('Found a newsletter form on this page')
         dump_page_source(debug_page_source_initial, webdriver, browser_params, manager_params)
 
     email = email_producer(current_url, current_site_title)
     user_info = _get_user_info(email)
     _form_fill_and_submit(newsletter_form, user_info, webdriver, False, browser_params, manager_params, debug_form_pre_initial if debug else None)
-    logger.info('submitted form on [%s] with email [%s]', current_url, email)
+    logger.info('Submitted form on [%s] with email [%s]', current_url, email)
     time.sleep(_FORM_SUBMIT_SLEEP)
     _dismiss_alert(webdriver)
-    if debug: save_screenshot(debug_form_post_initial, webdriver, browser_params, manager_params)
+
+    if debug:
+        save_screenshot(debug_form_post_initial, webdriver, browser_params, manager_params)
+        logger.debug('The current URL is %s' % webdriver.current_url)
+        logger.debug('Filling any follow-up forms on this page...')
 
     # fill any follow-up forms...
     wait_until_loaded(webdriver, _PAGE_LOAD_TIME)  # wait if we got redirected
@@ -292,6 +297,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
     # first check other windows (ex. pop-ups)
     windows = webdriver.window_handles
+    if debug: logger.debug('Found %d other windows (e.g., popups)' % len(windows))
     if len(windows) > 1:
         form_found_in_popup = False
         for window in windows:
@@ -304,7 +310,11 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
                     if follow_up_form is not None:
                         if debug:
                             dump_page_source(debug_page_source_followup, webdriver, browser_params, manager_params)
+                            logger.debug('Found a newsletter form in another window')
                         _form_fill_and_submit(follow_up_form, user_info, webdriver, True, browser_params, manager_params, debug_form_pre_followup if debug else None)
+
+                        logger.info('Submitted form on [%s] with email [%s]', webdriver.current_url, email)
+
                         time.sleep(_FORM_SUBMIT_SLEEP)
                         _dismiss_alert(webdriver)
                         if debug: save_screenshot(debug_form_post_followup, webdriver, browser_params, manager_params)
@@ -315,21 +325,29 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
     # else check current page
     if follow_up_form is None:
+        if debug: logger.debug('Found no follow-up forms in other windows, checking current page')
         follow_up_form = _find_newsletter_form(webdriver, debug, logger)
         if follow_up_form is not None:
             if debug:
                 dump_page_source(debug_page_source_followup, webdriver, browser_params, manager_params)
+                logger.debug('Found a follow-up form in this page')
+
             _form_fill_and_submit(follow_up_form, user_info, webdriver, True, browser_params, manager_params, debug_form_pre_followup if debug else None)
+
+            logger.info('Submitted form on [%s] with email [%s]', webdriver.current_url, email)
+
             time.sleep(_FORM_SUBMIT_SLEEP)
             _dismiss_alert(webdriver)
             if debug: save_screenshot(debug_form_post_followup, webdriver, browser_params, manager_params)
 
 	# switch back
     if in_iframe:
+        if debug: logger.debug('We were in an iframe, switching back to the main window')
         webdriver.switch_to_default_content()
 
     # close other windows (ex. pop-ups)
     windows = webdriver.window_handles
+    if debug: logger.debug('Closing %d other windows (e.g., popups)' % len(windows))
     if len(windows) > 1:
         for window in windows:
             if window != main_handle:
