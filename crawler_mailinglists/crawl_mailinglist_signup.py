@@ -7,7 +7,7 @@ NUM_BROWSERS = 1
 output_dir = '~/output_crawl/'
 db_name = 'crawl.sqlite'
 # Site list one of: shopping-500.csv, news-500.csv, top-1m.csv
-site_list = 'data/shopping-500.csv'
+site_list = 'data/random-websites.csv'
 
 
 def get_site(line):
@@ -16,12 +16,13 @@ def get_site(line):
 
 # Email address producer function (called when filling a form)
 def get_email(url, site_title):
+    return 'politicalfundiwproject@gmail.com'
     # Registers an email address with the mail API, returns the email address
-    api = 'http://lorveskel.me:8080/register'
-    data = urlencode({'site': site_title, 'url': url})
-    req = Request(api, data)
-    response = urlopen(req)
-    return response.read()
+    # api = 'http://lorveskel.me:8080/register'
+    # data = urlencode({'site': site_title, 'url': url})
+    # req = Request(api, data)
+    # response = urlopen(req)
+    # return response.read()
 
 
 # Visits the sites
