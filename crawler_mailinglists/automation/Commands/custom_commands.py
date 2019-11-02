@@ -24,11 +24,11 @@ _FLAG_IN_NEW_URL_ONLY = 2
 _LINK_TEXT_RANK = [
     # probably newsletters
     (_TYPE_TEXT, 'newsletter', 10, _FLAG_NONE),
-    (_TYPE_TEXT, 'weekly ad',   9, _FLAG_NONE),
+    (_TYPE_TEXT, 'stay informed',   9, _FLAG_NONE),
     (_TYPE_TEXT, 'subscribe',   9, _FLAG_NONE),
     (_TYPE_TEXT, 'inbox',       8, _FLAG_NONE),
     (_TYPE_TEXT, 'email',       7, _FLAG_NONE),
-    (_TYPE_TEXT, 'sale alert',  6, _FLAG_NONE),
+    (_TYPE_TEXT, 'keep in touch',  6, _FLAG_NONE),
 
     # sign-up links (for something?)
     (_TYPE_TEXT, 'signup',     5, _FLAG_NONE),
@@ -54,8 +54,8 @@ _LINK_TEXT_BLACKLIST = ['unsubscribe', 'mobile', 'phone']
 
 # Keywords
 _KEYWORDS_EMAIL  = ['email', 'e-mail', 'subscribe', 'newsletter']
-_KEYWORDS_EMAIL_BLACKLIST = ['contact us']
-_KEYWORDS_SUBMIT = ['submit', 'sign up', 'sign-up', 'signup', 'sign me up', 'subscribe', 'register', 'join']
+_KEYWORDS_EMAIL_BLACKLIST = ['contact us', 'message']
+_KEYWORDS_SUBMIT = ['submit', 'sign up', 'sign-up', 'signup', 'sign me up', 'subscribe', 'register', 'join', 'i\'m in']
 _KEYWORDS_SELECT = ['yes', 'ny', 'new york', 'united states', 'usa', '1990']
 
 # Other constants
@@ -96,8 +96,12 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
     logger = loggingclient(*manager_params['logger_address'])
 
     # try to find a newsletter form on the landing page
+    if debug: logger.info('Attempting to find a newsletter form on the landing page')
     if _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
+        if debug: logger.info('Found a submitted a form on the landing page, returning')
         return
+
+    if debug: logger.info('Could not find a form on the landing page; scanning more pages')
 
     # otherwise, scan more pages
     main_handle = webdriver.current_window_handle
@@ -154,14 +158,16 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
                 if link_rank >= _LINK_RANK_SKIP:  # good enough, stop looking
                     break
             except:
-                logger.error("error while looping through links...")
+                logger.error('Error while looping through links...')
 
             # quit if too much time passed (for some reason, this is really slow...)
             if match_links and timeit.default_timer() - start_time > _LINK_MATCH_TIMEOUT:
+                logger.warning('Too much time passed, quiting')
                 break
 
         # find the best link to click
         if not match_links:
+            if DEBUG: logger.info('No more links to click')
             break  # no more links to click
         match_links.sort(key=lambda l: l[1])
         next_link = match_links[-1]
@@ -170,7 +176,7 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
         # click the link
         try:
             # load the page
-            logger.info("clicking on link '%s' - %s" % (next_link[2], next_link[3]))
+            logger.info("Clicking on link '%s' - %s" % (next_link[2], next_link[3]))
             next_link[0].click()
             wait_until_loaded(webdriver, _PAGE_LOAD_TIME)
             if browser_params['bot_mitigation']:
@@ -178,6 +184,7 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
 
             # find newsletter form
             if _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
+                if debug: logger.info('Found and submitted newsletter form')
                 return
 
             # should we stay on this page?
@@ -199,6 +206,7 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
 
                         # find newsletter form
                         if _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
+                            if debug: logger.info('Found and submitted newsletter form in popup')
                             form_found_in_popup = True
 
                         webdriver.close()
@@ -233,7 +241,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
     debug_page_source_followup = debug_file_prefix + 'src_followup'
 
     # try to find newsletter form on landing page
-    newsletter_form = _find_newsletter_form(webdriver)
+    newsletter_form = _find_newsletter_form(webdriver, debug, logger)
     if newsletter_form is None:
         # search for forms in iframes (if present)
         iframes = webdriver.find_elements_by_tag_name('iframe') + webdriver.find_elements_by_tag_name('frame')
@@ -242,7 +250,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
             webdriver.switch_to_frame(iframe)
 
             # is there a form?
-            newsletter_form = _find_newsletter_form(webdriver)
+            newsletter_form = _find_newsletter_form(webdriver, debug, logger)
             if newsletter_form is not None:
                 if debug:
                     dump_page_source(debug_page_source_initial, webdriver, browser_params, manager_params)
@@ -280,7 +288,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
                 # find newsletter form
                 if follow_up_form is None:
-                    follow_up_form = _find_newsletter_form(webdriver)
+                    follow_up_form = _find_newsletter_form(webdriver, debug, logger)
                     if follow_up_form is not None:
                         if debug:
                             dump_page_source(debug_page_source_followup, webdriver, browser_params, manager_params)
@@ -295,7 +303,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
     # else check current page
     if follow_up_form is None:
-        follow_up_form = _find_newsletter_form(webdriver)
+        follow_up_form = _find_newsletter_form(webdriver, debug, logger)
         if follow_up_form is not None:
             if debug:
                 dump_page_source(debug_page_source_followup, webdriver, browser_params, manager_params)
@@ -320,13 +328,15 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
     return True
 
-def _find_newsletter_form(webdriver):
+def _find_newsletter_form(webdriver, debug, logger):
     """Tries to find a form element on the page for newsletter sign-up.
     Returns None if no form was found.
     """
     # find all forms that match
     newsletter_forms = []
     forms = webdriver.find_elements_by_tag_name('form')
+
+    if debug: logger.info('Found %d forms on page' % len(forms))
     for form in forms:
         if not form.is_displayed():
             continue
@@ -337,11 +347,14 @@ def _find_newsletter_form(webdriver):
         for s in _KEYWORDS_EMAIL:
             if s in form_html:
                 match = True
+                if debug: logger.info('Form matches keywords so match is True')
                 break
 
         for s in _KEYWORDS_EMAIL_BLACKLIST:
             if s in form_html:
                 match = False
+                if debug: logger.info('Form matches blacklist so match is False')
+                break
 
         if not match:
             continue
@@ -352,8 +365,11 @@ def _find_newsletter_form(webdriver):
         for input_field in input_fields:
             if input_field.is_displayed() and _is_email_input(input_field):
                 match = True
+                if debug: logger.info('Form contains an email input field')
                 break
+
         if not match:
+            if debug: logger.info('Form does not contain an email input field')
             continue
 
         # form matched, get some other ranking criteria:
@@ -367,17 +383,28 @@ def _find_newsletter_form(webdriver):
         input_field_count = len([x for x in input_fields if x.is_displayed()])
         newsletter_forms.append((form, (z_index, int(has_modal_text), login_text_count, input_field_count)))
 
+    if debug: logger.info('Found %d newsletter forms' % len(newsletter_forms))
+
     # return highest ranked form
     if newsletter_forms:
         newsletter_forms.sort(key=lambda x: x[1], reverse=True)
+        if debug: logger.info('Returning highest ranked form')
         return newsletter_forms[0][0]
 
     # try to find any container with email input fields and a submit button
     input_fields = webdriver.find_elements_by_tag_name('input')
+    if debug:
+        logger.info('Searching for input fields in form-like containers')
+        logger.info('Found %d input fields' % len(input_fields))
+
     visited_containers = set()
     for input_field in input_fields:
         if not input_field.is_displayed() or not _is_email_input(input_field):
             continue
+
+        if debug:
+            logger.info('Found a visible input email field')
+            logger.info('Checking whether its parent container has a submit button')
 
         # email input field found, check parents for container with a submit button
         try:
@@ -392,6 +419,7 @@ def _find_newsletter_form(webdriver):
                 if tag_name == 'div' or tag_name == 'span':
                     # does this contain a submit button?
                     if _has_submit_button(e):
+                        if debug: logger.info('Found a form to submit, returning')
                         return e  # yes, we're done
 
                 visited_containers.add(e.id)
