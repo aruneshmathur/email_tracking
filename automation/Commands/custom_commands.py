@@ -63,6 +63,8 @@ _PAGE_LOAD_TIME = 5  # time to wait for pages to load (in seconds)
 _FORM_SUBMIT_SLEEP = 2  # time to wait after submitting a form (in seconds)
 _FORM_CONTAINER_SEARCH_LIMIT = 4  # number of parents of input fields to search
 
+MAX_POPUP_DISMISS = 2
+
 # User information to supply to forms
 def _get_user_info(email):
     """Returns a dictionary of user information."""
@@ -247,8 +249,36 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
     debug_page_source_initial = debug_file_prefix + 'src_initial'
     debug_page_source_followup = debug_file_prefix + 'src_followup'
 
-    # try to find newsletter form on landing page
-    newsletter_form = _find_newsletter_form(webdriver, debug, logger)
+    newsletter_form = None
+
+    # Search for a modal dialog, and for a form in the modal dialog
+    # Search for no more than two modal dialogs
+    search_count = 0
+    while (search_count < MAX_POPUP_DISMISS):
+        if debug: logger.debug('Round %d of modal dialog search...' % search_count)
+        dialog_container = _get_dialog_container(webdriver)
+        if dialog_container:
+            if debug: logger.debug('Modal dialog found, searching for newsletter form in dialog...')
+            newsletter_form = _find_newsletter_form(dialog_container, webdriver, debug, logger)
+
+            if newsletter_form is None:
+                _dismiss_dialog(webdriver, dialog_container)
+                if debug: logger.debug('No newsletter form in dialog, dismissed it')
+            else:
+                if debug: logger.debug('Found a newsletter form in the dialog')
+                break
+        else:
+            if debug: logger.debug('No dialog on the page')
+            break
+
+        search_count += 1
+
+    # try to find newsletter forms on landing page after dismissing the dialog
+    if newsletter_form is None:
+        if debug: logger.debug('Searching the rest of the page for a newsletter form')
+        newsletter_form = _find_newsletter_form(None, webdriver, debug, logger)
+
+    # Search for newsletter forms in iframes
     if newsletter_form is None:
         if debug: logger.debug('No newsletter form found on this page, searching for forms in iframes...')
 
@@ -261,7 +291,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
             webdriver.switch_to_frame(iframe)
 
             # is there a form?
-            newsletter_form = _find_newsletter_form(webdriver, debug, logger)
+            newsletter_form = _find_newsletter_form(None, webdriver, debug, logger)
             if newsletter_form is not None:
                 if debug:
                     dump_page_source(debug_page_source_initial, webdriver, browser_params, manager_params)
@@ -297,8 +327,8 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
     # first check other windows (ex. pop-ups)
     windows = webdriver.window_handles
-    if debug: logger.debug('Found %d other windows (e.g., popups)' % len(windows))
     if len(windows) > 1:
+        if debug: logger.debug('Found %d windows (e.g., popups)' % len(windows))
         form_found_in_popup = False
         for window in windows:
             if window != main_handle:
@@ -306,7 +336,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
                 # find newsletter form
                 if follow_up_form is None:
-                    follow_up_form = _find_newsletter_form(webdriver, debug, logger)
+                    follow_up_form = _find_newsletter_form(None, webdriver, debug, logger)
                     if follow_up_form is not None:
                         if debug:
                             dump_page_source(debug_page_source_followup, webdriver, browser_params, manager_params)
@@ -326,7 +356,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
     # else check current page
     if follow_up_form is None:
         if debug: logger.debug('Found no follow-up forms in other windows, checking current page')
-        follow_up_form = _find_newsletter_form(webdriver, debug, logger)
+        follow_up_form = _find_newsletter_form(None, webdriver, debug, logger)
         if follow_up_form is not None:
             if debug:
                 dump_page_source(debug_page_source_followup, webdriver, browser_params, manager_params)
@@ -339,6 +369,8 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
             time.sleep(_FORM_SUBMIT_SLEEP)
             _dismiss_alert(webdriver)
             if debug: save_screenshot(debug_form_post_followup, webdriver, browser_params, manager_params)
+        else:
+            if debug: logger.debug('No follow-up forms on the current page')
 
 	# switch back
     if in_iframe:
@@ -347,8 +379,8 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
     # close other windows (ex. pop-ups)
     windows = webdriver.window_handles
-    if debug: logger.debug('Closing %d other windows (e.g., popups)' % len(windows))
     if len(windows) > 1:
+        if debug: logger.debug('Closing %d windows (e.g., popups)' % len(windows))
         for window in windows:
             if window != main_handle:
                 webdriver.switch_to_window(window)
@@ -358,13 +390,16 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
     return True
 
-def _find_newsletter_form(webdriver, debug, logger):
+def _find_newsletter_form(container, webdriver, debug, logger):
     """Tries to find a form element on the page for newsletter sign-up.
     Returns None if no form was found.
     """
+    if container is None:
+        container = webdriver
+
     # find all forms that match
     newsletter_forms = []
-    forms = webdriver.find_elements_by_tag_name('form')
+    forms = container.find_elements_by_tag_name('form')
 
     if debug: logger.debug('Found %d forms on this page' % len(forms))
     for form in forms:
@@ -413,7 +448,7 @@ def _find_newsletter_form(webdriver, debug, logger):
         input_field_count = len([x for x in input_fields if x.is_displayed()])
         newsletter_forms.append((form, (z_index, int(has_modal_text), login_text_count, input_field_count)))
 
-    if debug: logger.debug('Found %d newsletter forms' % len(newsletter_forms))
+    if debug: logger.debug('%d are newsletter forms' % len(newsletter_forms))
 
     # return highest ranked form
     if newsletter_forms:
@@ -422,7 +457,7 @@ def _find_newsletter_form(webdriver, debug, logger):
         return newsletter_forms[0][0]
 
     # try to find any container with email input fields and a submit button
-    input_fields = webdriver.find_elements_by_tag_name('input')
+    input_fields = container.find_elements_by_tag_name('input')
     if debug:
         logger.debug('Searching for input fields in form-like containers')
         logger.debug('Found %d input fields' % len(input_fields))
@@ -686,3 +721,19 @@ def _type_in_field(input_field, text, clear):
     if clear:
         input_field.send_keys(Keys.CONTROL, 'a')
     input_field.send_keys(text)
+
+def _get_dialog_container(webdriver):
+    """If there exists a modal popup, return its container"""
+    try:
+        script = open('common.js').read() + ';' + open('dismiss_dialogs.js').read() + ';' + 'return getPopupContainer();'
+        return webdriver.execute_script(script)
+    except Exception as e:
+        raise Exception('Script to extract popup dialog container crashed: %s' % str(e))
+
+def _dismiss_dialog(webdriver, container):
+    """Dismisses the popup with parent container"""
+    try:
+        script = open('common.js').read() + ';' + open('dismiss_dialogs.js').read() + ';' + 'return closeDialog(arguments[0]);'
+        return webdriver.execute_script(script, container)
+    except Exception as e:
+        raise Exception('Script to dismiss popup dialog crashed: %s' % str(e))
