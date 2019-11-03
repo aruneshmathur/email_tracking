@@ -42,6 +42,7 @@ _LINK_TEXT_RANK = [
 
     # articles (sometimes sign-up links are on these pages...)
     (_TYPE_HREF, '/article', 3, _FLAG_NONE),
+    (_TYPE_HREF, '/home', 3, _FLAG_NONE),
     (_TYPE_HREF, 'news/',    3, _FLAG_IN_NEW_URL_ONLY),
     (_TYPE_HREF, '/' + str(datetime.datetime.now().year), 2, _FLAG_NONE),
 
@@ -56,7 +57,7 @@ _LINK_TEXT_BLACKLIST = ['unsubscribe', 'mobile', 'phone']
 
 # Keywords
 _KEYWORDS_EMAIL  = ['email', 'e-mail', 'subscribe', 'newsletter']
-_KEYWORDS_EMAIL_BLACKLIST = ['contact us', 'message']
+_KEYWORDS_EMAIL_BLACKLIST = ['contact us', 'contact me', 'message']
 _KEYWORDS_SUBMIT = ['submit', 'sign up', 'sign-up', 'signup', 'sign me up', 'subscribe', 'register', 'join', 'i\'m in']
 _KEYWORDS_SELECT = ['yes', 'ny', 'new york', 'united states', 'usa', '1990']
 
