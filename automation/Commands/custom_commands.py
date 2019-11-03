@@ -57,7 +57,7 @@ _LINK_TEXT_BLACKLIST = ['unsubscribe', 'mobile', 'phone']
 
 # Keywords
 _KEYWORDS_EMAIL  = ['email', 'e-mail', 'subscribe', 'newsletter']
-_KEYWORDS_EMAIL_BLACKLIST = ['contact us', 'contact me', 'message']
+_KEYWORDS_EMAIL_BLACKLIST = ['contact us', 'contact me', 'message', 'subject', 'send']
 _KEYWORDS_SUBMIT = ['submit', 'sign up', 'sign-up', 'signup', 'sign me up', 'subscribe', 'register', 'join', 'i\'m in']
 _KEYWORDS_SELECT = ['yes', 'ny', 'new york', 'united states', 'usa', '1990']
 
@@ -100,6 +100,9 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
 
     # connect to the logger
     logger = loggingclient(*manager_params['logger_address'])
+
+    # sleep before proceeding, let popups (if any, appear)
+    time.sleep(_PAGE_LOAD_TIME)
 
     # take a screenshot, and try to find a newsletter form on the landing page
     if debug:
@@ -426,10 +429,6 @@ def _find_newsletter_form(container, webdriver, debug, logger):
 
         # find email keywords in the form HTML (preliminary filtering)
         form_html = form.get_attribute('outerHTML').lower()
-        form_text = []
-        for line in form.get_attribute('innerText').lower().split('\n'):
-            for token in line.split(' '):
-                form_text.append(token)
 
         match = False
         for s in _KEYWORDS_EMAIL:
@@ -438,11 +437,10 @@ def _find_newsletter_form(container, webdriver, debug, logger):
                 if debug: logger.debug('Form matches keywords so match is True')
                 break
 
-        for s in _KEYWORDS_EMAIL_BLACKLIST:
-            if s in form_text:
-                match = False
-                if debug: logger.debug('Form matches blacklist so match is False')
-                break
+        if _check_form_blacklist(form):
+            match = False
+            if debug: logger.debug('Form matches blacklist so match is False')
+            break
 
         if not match:
             continue
@@ -507,10 +505,9 @@ def _find_newsletter_form(container, webdriver, debug, logger):
                 if tag_name == 'div' or tag_name == 'span':
                     # does this contain a submit button?
                     if _has_submit_button(e):
-                        for s in _KEYWORDS_EMAIL_BLACKLIST:
-                            if s in form_text:
-                                if debug: logger.debug('Parent container matches blacklist, ignoring')
-                                raise Exception()
+                        if _check_form_blacklist(e):
+                            if debug: logger.debug('Parent container matches blacklist, ignoring')
+                            raise Exception()
 
                         if debug: logger.debug('Found a form to submit, returning')
                         return e  # yes, we're done
@@ -751,7 +748,7 @@ def _type_in_field(input_field, text, clear):
     input_field.send_keys(text)
 
 def _get_dialog_container(webdriver):
-    """If there exists a modal popup, return its container"""
+    """If there exists a modal popup, return its container."""
     try:
         script = open('common.js').read() + ';' + open('dismiss_dialogs.js').read() + ';' + 'return getPopupContainer();'
         return webdriver.execute_script(script)
@@ -759,9 +756,22 @@ def _get_dialog_container(webdriver):
         raise Exception('Script to extract popup dialog container crashed: %s' % str(e))
 
 def _dismiss_dialog(webdriver, container):
-    """Dismisses the popup with parent container"""
+    """Dismisses the popup with parent container."""
     try:
         script = open('common.js').read() + ';' + open('dismiss_dialogs.js').read() + ';' + 'return closeDialog(arguments[0]);'
         return webdriver.execute_script(script, container)
     except Exception as e:
         raise Exception('Script to dismiss popup dialog crashed: %s' % str(e))
+
+def _check_form_blacklist(form):
+    """Checks whether the form should be blacklisted and ignored."""
+    form_text = []
+    for line in form.get_attribute('innerText').lower().split('\n'):
+        for token in line.split(' '):
+            form_text.append(token)
+
+    for s in _KEYWORDS_EMAIL_BLACKLIST:
+        if s in form_text:
+            return True
+
+    return False
