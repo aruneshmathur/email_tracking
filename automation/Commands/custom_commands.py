@@ -64,7 +64,7 @@ _FORM_SUBMIT_SLEEP = 2  # time to wait after submitting a form (in seconds)
 _FORM_CONTAINER_SEARCH_LIMIT = 4  # number of parents of input fields to search
 
 # The maximum number of popups we will dismiss.
-MAX_POPUP_DISMISS = 2
+_MAX_POPUP_DISMISS = 2
 
 # User information to supply to forms
 def _get_user_info(email):
@@ -133,7 +133,7 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
                     continue
 
                 # check if this is an internal link
-                if not _is_internal_link(href, current_url, current_ps1):
+                if not _is_internal_link(href, current_url, current_ps1) and not _whitelisted_links(href, current_url):
                     continue
 
                 link_text = link.get_attribute('text').lower().strip()
@@ -232,6 +232,10 @@ def _is_internal_link(href, url, ps1=None):
         ps1 = domain_utils.get_ps_plus_1(url)
     return domain_utils.get_ps_plus_1(urljoin(url, href)) == ps1
 
+def _whitelisted_links(href, url):
+    """Returns whether the given link is whitelisted."""
+    return domain_utils.get_ps_plus_1(urljoin(url, href)) in ['actionnetwork.org']
+
 def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
     """Finds and fills a form, and returns True if accomplished."""
     current_url = webdriver.current_url
@@ -256,7 +260,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
     # Search for no more than two modal dialogs
     try:
         search_count = 0
-        while (search_count < MAX_POPUP_DISMISS):
+        while (search_count < _MAX_POPUP_DISMISS):
             if debug: logger.debug('Round %d of modal dialog search...' % search_count)
             dialog_container = _get_dialog_container(webdriver)
             if dialog_container:
@@ -264,8 +268,12 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
                 newsletter_form = _find_newsletter_form(dialog_container, webdriver, debug, logger)
 
                 if newsletter_form is None:
-                    _dismiss_dialog(webdriver, dialog_container)
-                    if debug: logger.debug('No newsletter form in dialog, dismissed it')
+                    clicked = _dismiss_dialog(webdriver, dialog_container)
+                    if debug:
+                        if int(clicked) > 0:
+                            logger.debug('No newsletter form in dialog, dismissed it')
+                        else:
+                            logger.debug('Made no clicks to dismiss the dialog')
                 else:
                     if debug: logger.debug('Found a newsletter form in the dialog')
                     break
@@ -412,6 +420,8 @@ def _find_newsletter_form(container, webdriver, debug, logger):
 
         # find email keywords in the form HTML (preliminary filtering)
         form_html = form.get_attribute('outerHTML').lower()
+        form_text = form.get_attribute('innerText').lower()
+
         match = False
         for s in _KEYWORDS_EMAIL:
             if s in form_html:
@@ -420,7 +430,7 @@ def _find_newsletter_form(container, webdriver, debug, logger):
                 break
 
         for s in _KEYWORDS_EMAIL_BLACKLIST:
-            if s in form_html:
+            if s in form_text:
                 match = False
                 if debug: logger.debug('Form matches blacklist so match is False')
                 break
