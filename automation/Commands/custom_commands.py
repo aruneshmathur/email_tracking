@@ -1,4 +1,5 @@
 from selenium.webdriver.common.keys import Keys
+from selenium import webdriver as wd
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.webdriver.support import expected_conditions
 from selenium.common.exceptions import TimeoutException
@@ -37,6 +38,7 @@ _LINK_TEXT_RANK = [
     (_TYPE_TEXT, 'register',   4, _FLAG_NONE),
     (_TYPE_TEXT, 'create',     4, _FLAG_NONE),
     (_TYPE_TEXT, 'join',       4, _FLAG_NONE),
+    (_TYPE_TEXT, 'get involved',       4, _FLAG_NONE),
 
     # articles (sometimes sign-up links are on these pages...)
     (_TYPE_HREF, '/article', 3, _FLAG_NONE),
@@ -271,9 +273,12 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
                     clicked = _dismiss_dialog(webdriver, dialog_container)
                     if debug:
                         if int(clicked) > 0:
-                            logger.debug('No newsletter form in dialog, dismissed it')
+                            if debug: logger.debug('No newsletter form in dialog, dismissed it')
                         else:
-                            logger.debug('Made no clicks to dismiss the dialog')
+                            if debug:
+                                logger.debug('Made no clicks to dismiss the dialog')
+                                webdriver.find_element_by_tag_name('html').send_keys(Keys.ESCAPE)
+                                logger.debug('Pressed ESC to dismiss the dialog')
                 else:
                     if debug: logger.debug('Found a newsletter form in the dialog')
                     break
@@ -316,7 +321,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
         # still no form?
         if newsletter_form is None:
-            logger.debug('None of the iframes have newsletter forms')
+            if debug: logger.debug('None of the iframes have newsletter forms')
             return False
     elif debug:
         dump_page_source(debug_page_source_initial, webdriver, browser_params, manager_params)
@@ -420,7 +425,10 @@ def _find_newsletter_form(container, webdriver, debug, logger):
 
         # find email keywords in the form HTML (preliminary filtering)
         form_html = form.get_attribute('outerHTML').lower()
-        form_text = form.get_attribute('innerText').lower()
+        form_text = []
+        for line in form.get_attribute('innerText').lower().split('\n'):
+            for token in line.split(' '):
+                form_text.append(token)
 
         match = False
         for s in _KEYWORDS_EMAIL:
@@ -498,6 +506,11 @@ def _find_newsletter_form(container, webdriver, debug, logger):
                 if tag_name == 'div' or tag_name == 'span':
                     # does this contain a submit button?
                     if _has_submit_button(e):
+                        for s in _KEYWORDS_EMAIL_BLACKLIST:
+                            if s in form_text:
+                                if debug: logger.debug('Parent container matches blacklist, ignoring')
+                                raise Exception()
+
                         if debug: logger.debug('Found a form to submit, returning')
                         return e  # yes, we're done
 
