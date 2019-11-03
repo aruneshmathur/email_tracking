@@ -253,25 +253,28 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
     # Search for a modal dialog, and for a form in the modal dialog
     # Search for no more than two modal dialogs
-    search_count = 0
-    while (search_count < MAX_POPUP_DISMISS):
-        if debug: logger.debug('Round %d of modal dialog search...' % search_count)
-        dialog_container = _get_dialog_container(webdriver)
-        if dialog_container:
-            if debug: logger.debug('Modal dialog found, searching for newsletter form in dialog...')
-            newsletter_form = _find_newsletter_form(dialog_container, webdriver, debug, logger)
+    try:
+        search_count = 0
+        while (search_count < MAX_POPUP_DISMISS):
+            if debug: logger.debug('Round %d of modal dialog search...' % search_count)
+            dialog_container = _get_dialog_container(webdriver)
+            if dialog_container:
+                if debug: logger.debug('Modal dialog found, searching for newsletter form in dialog...')
+                newsletter_form = _find_newsletter_form(dialog_container, webdriver, debug, logger)
 
-            if newsletter_form is None:
-                _dismiss_dialog(webdriver, dialog_container)
-                if debug: logger.debug('No newsletter form in dialog, dismissed it')
+                if newsletter_form is None:
+                    _dismiss_dialog(webdriver, dialog_container)
+                    if debug: logger.debug('No newsletter form in dialog, dismissed it')
+                else:
+                    if debug: logger.debug('Found a newsletter form in the dialog')
+                    break
             else:
-                if debug: logger.debug('Found a newsletter form in the dialog')
+                if debug: logger.debug('No dialog on the page')
                 break
-        else:
-            if debug: logger.debug('No dialog on the page')
-            break
 
-        search_count += 1
+            search_count += 1
+    except:
+        logger.error('Error while examining for modal dialogs')
 
     # try to find newsletter forms on landing page after dismissing the dialog
     if newsletter_form is None:
