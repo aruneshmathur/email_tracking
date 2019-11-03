@@ -63,6 +63,7 @@ _PAGE_LOAD_TIME = 5  # time to wait for pages to load (in seconds)
 _FORM_SUBMIT_SLEEP = 2  # time to wait after submitting a form (in seconds)
 _FORM_CONTAINER_SEARCH_LIMIT = 4  # number of parents of input fields to search
 
+# The maximum number of popups we will dismiss.
 MAX_POPUP_DISMISS = 2
 
 # User information to supply to forms
@@ -273,8 +274,8 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
                 break
 
             search_count += 1
-    except:
-        logger.error('Error while examining for modal dialogs')
+    except Exception as e:
+        logger.error('Error while examining for modal dialogs: %s' % str(e))
 
     # try to find newsletter forms on landing page after dismissing the dialog
     if newsletter_form is None:
