@@ -311,20 +311,24 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
         if debug: logger.debug('Searching in %d iframes' % len(iframes))
 
         for iframe in iframes:
-            # switch to the iframe
-            webdriver.switch_to_frame(iframe)
+            try:
+                # switch to the iframe
+                webdriver.switch_to_frame(iframe)
 
-            # is there a form?
-            newsletter_form = _find_newsletter_form(None, webdriver, debug, logger)
-            if newsletter_form is not None:
-                if debug:
-                    dump_page_source(debug_page_source_initial, webdriver, browser_params, manager_params)
-                    logger.debug('Found a newsletter in an iframe on this page')
-                in_iframe = True
-                break  # form found, stay on the iframe
+                # is there a form?
+                newsletter_form = _find_newsletter_form(None, webdriver, debug, logger)
+                if newsletter_form is not None:
+                    if debug:
+                        dump_page_source(debug_page_source_initial, webdriver, browser_params, manager_params)
+                        logger.debug('Found a newsletter in an iframe on this page')
+                    in_iframe = True
+                    break  # form found, stay on the iframe
 
-            # switch back
-            webdriver.switch_to_default_content()
+                # switch back
+                webdriver.switch_to_default_content()
+            except Exception as e:
+                if debug: logger.error('Error while analyzing an iframe: %s' % str(e))
+                webdriver.switch_to_default_content()
 
         # still no form?
         if newsletter_form is None:
@@ -335,7 +339,7 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
 
     email = email_producer(current_url, current_site_title)
     user_info = _get_user_info(email)
-    _form_fill_and_submit(newsletter_form, user_info, webdriver, False, browser_params, manager_params, debug_form_pre_initial if debug else None)
+    _form_fill_and_submit(newsletter_form, user_info, webdriver, True, browser_params, manager_params, debug_form_pre_initial if debug else None)
     logger.info('Submitted form on [%s] with email [%s]', current_url, email)
     time.sleep(_FORM_SUBMIT_SLEEP)
     _dismiss_alert(webdriver)
@@ -763,6 +767,7 @@ def _type_in_field(input_field, text, clear):
     """Types text into an input field."""
     if clear:
         input_field.send_keys(Keys.CONTROL, 'a')
+        input_field.send_keys(Keys.BACKSPACE)
     input_field.send_keys(text)
 
 def _get_dialog_container(webdriver):
