@@ -10,6 +10,7 @@ import random
 import time
 import timeit
 import datetime
+import re
 
 from ..MPLogger import loggingclient
 from ..utilities import domain_utils
@@ -42,7 +43,7 @@ _LINK_TEXT_RANK = [
 
     # articles (sometimes sign-up links are on these pages...)
     (_TYPE_HREF, '/article', 3, _FLAG_NONE),
-    (_TYPE_HREF, '/home', 3, _FLAG_NONE),
+    (_TYPE_HREF, '/home', 3, _FLAG_STAY_ON_PAGE | _FLAG_IN_NEW_URL_ONLY),
     (_TYPE_HREF, 'news/',    3, _FLAG_IN_NEW_URL_ONLY),
     (_TYPE_HREF, '/' + str(datetime.datetime.now().year), 2, _FLAG_NONE),
 
@@ -773,10 +774,10 @@ def _check_form_blacklist(form):
     """Checks whether the form should be blacklisted and ignored."""
     form_text = []
     for line in form.get_attribute('innerText').lower().split('\n'):
-        form_text.append(line)
+        form_text.append(re.sub('[^A-Za-z ]', '', line).strip())
 
     for s in _KEYWORDS_EMAIL_BLACKLIST:
-        if s == form_text:
+        if s in form_text:
             return True
 
     return False
