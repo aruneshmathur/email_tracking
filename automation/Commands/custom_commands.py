@@ -63,7 +63,7 @@ _KEYWORDS_SUBMIT = ['submit', 'sign up', 'sign-up', 'signup', 'sign me up', 'sub
 _KEYWORDS_SELECT = ['yes', 'ny', 'new york', 'united states', 'usa', '1990']
 
 # Other constants
-_PAGE_LOAD_TIME = 5  # time to wait for pages to load (in seconds)
+_PAGE_LOAD_TIME = 7  # time to wait for pages to load (in seconds)
 _FORM_SUBMIT_SLEEP = 2  # time to wait after submitting a form (in seconds)
 _FORM_CONTAINER_SEARCH_LIMIT = 4  # number of parents of input fields to search
 
@@ -597,10 +597,13 @@ def _form_fill_and_submit(form, user_info, webdriver, clear, browser_params, man
     submit_button = None
     text_field = None
     for input_field in input_fields:
-        if not input_field.is_displayed():
+        type = input_field.get_attribute('type').lower()
+
+        # execptions for checkbox and radio elements since these can be invisble but still visible
+        # because of superimposed elements
+        if not input_field.is_displayed() and type != 'checkbox' and type != 'radio':
             continue
 
-        type = input_field.get_attribute('type').lower()
         if type == 'email':
             # using html5 "email" type, this is probably an email field
             _type_in_field(input_field, user_info['email'], clear)
@@ -658,8 +661,16 @@ def _form_fill_and_submit(form, user_info, webdriver, clear, browser_params, man
                 _type_in_field(input_field, user_info['zip'], clear)
         elif type == 'checkbox' or type == 'radio':
             # check anything/everything
-            if not input_field.is_selected():
-                input_field.click()
+            if input_field.is_displayed():
+                if not input_field.is_selected():
+                    input_field.click()
+            else:
+                try:
+                    checked = webdriver.execute_script('return arguments[0].checked', input_field)
+                    if checked == False:
+                        webdriver.execute_script('return arguments[0].click()', input_field)
+                except:
+                    pass
         elif type == 'password':
             _type_in_field(input_field, user_info['password'], clear)
         elif type == 'tel':
