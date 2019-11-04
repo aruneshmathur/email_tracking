@@ -222,11 +222,13 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
                             form_found_in_popup = True
 
                         webdriver.close()
-                webdriver.switch_to_window(main_handle)
-                time.sleep(1)
 
                 if form_found_in_popup:
                     return
+
+                webdriver.switch_to_window(main_handle)
+                time.sleep(1)
+
         except:
             pass
 
@@ -240,7 +242,7 @@ def _is_internal_link(href, url, ps1=None):
 
 def _whitelisted_links(href, url):
     """Returns whether the given link is whitelisted."""
-    return domain_utils.get_ps_plus_1(urljoin(url, href)) in ['actionnetwork.org']
+    return domain_utils.get_ps_plus_1(urljoin(url, href)) in ['actionnetwork.org', 'mailchi.mp', 'myngp.com']
 
 def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
     """Finds and fills a form, and returns True if accomplished."""
