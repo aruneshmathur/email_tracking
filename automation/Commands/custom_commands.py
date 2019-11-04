@@ -242,7 +242,7 @@ def _is_internal_link(href, url, ps1=None):
 
 def _whitelisted_links(href, url):
     """Returns whether the given link is whitelisted."""
-    return domain_utils.get_ps_plus_1(urljoin(url, href)) in ['actionnetwork.org', 'mailchi.mp', 'myngp.com']
+    return domain_utils.get_ps_plus_1(urljoin(url, href)) in ['actionnetwork.org', 'mailchi.mp', 'myngp.com', 'ngpvan.com']
 
 def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
     """Finds and fills a form, and returns True if accomplished."""
@@ -662,7 +662,11 @@ def _form_fill_and_submit(form, user_info, webdriver, clear, browser_params, man
         elif type == 'password':
             _type_in_field(input_field, user_info['password'], clear)
         elif type == 'tel':
-            _type_in_field(input_field, user_info['tel'], clear)
+            # exceptions
+            if _element_contains_text(input_field, ['zip', 'postal',]):
+                _type_in_field(input_field, user_info['zip'], clear)
+            else:
+                _type_in_field(input_field, user_info['tel'], clear)
         elif type == 'submit' or type == 'button' or type == 'image':
             if _element_contains_text(input_field, _KEYWORDS_SUBMIT):
                 submit_button = input_field
@@ -769,11 +773,10 @@ def _check_form_blacklist(form):
     """Checks whether the form should be blacklisted and ignored."""
     form_text = []
     for line in form.get_attribute('innerText').lower().split('\n'):
-        for token in line.split(' '):
-            form_text.append(token)
+        form_text.append(line)
 
     for s in _KEYWORDS_EMAIL_BLACKLIST:
-        if s in form_text:
+        if s == form_text:
             return True
 
     return False
