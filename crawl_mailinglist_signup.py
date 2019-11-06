@@ -16,13 +16,7 @@ def get_site(line):
 
 # Email address producer function (called when filling a form)
 def get_email(url, site_title):
-    return 'politicalfundiwproject@gmail.com'
-    # Registers an email address with the mail API, returns the email address
-    # api = 'http://lorveskel.me:8080/register'
-    # data = urlencode({'site': site_title, 'url': url})
-    # req = Request(api, data)
-    # response = urlopen(req)
-    # return response.read()
+    return None
 
 
 # Visits the sites
@@ -42,7 +36,10 @@ for i in xrange(NUM_BROWSERS):
     browser_params[i]['bot_mitigation'] = True
     browser_params[i]['disable_flash'] = True
     browser_params[i]['disable_images'] = False
-    browser_params[i]['http_instrument'] = False
+    browser_params[i]['js_instrument'] = True
+    browser_params[i]['cookie_instrument'] = True
+    browser_params[i]['http_instrument'] = True
+    browser_params[i]['save_javascript'] = True
 
 # Update TaskManager configuration (use this for crawl-wide settings)
 manager_params['data_directory'] = output_dir
