@@ -29,17 +29,22 @@ _LINK_TEXT_RANK = [
     (_TYPE_TEXT, 'stay informed',   9, _FLAG_NONE),
     (_TYPE_TEXT, 'subscribe',   9, _FLAG_NONE),
     (_TYPE_TEXT, 'inbox',       8, _FLAG_NONE),
-    (_TYPE_TEXT, 'email',       7, _FLAG_NONE),
     (_TYPE_TEXT, 'keep in touch',  6, _FLAG_NONE),
 
     # sign-up links (for something?)
     (_TYPE_TEXT, 'signup',     5, _FLAG_NONE),
     (_TYPE_TEXT, 'sign up',    5, _FLAG_NONE),
     (_TYPE_TEXT, 'sign me up', 5, _FLAG_NONE),
+    (_TYPE_TEXT, 'join',       5, _FLAG_NONE),
+    (_TYPE_TEXT, 'take action',       5, _FLAG_NONE),
+    (_TYPE_TEXT, 'get involved',       5, _FLAG_NONE),
+    (_TYPE_TEXT, 'get engaged',       5, _FLAG_NONE),
     (_TYPE_TEXT, 'register',   4, _FLAG_NONE),
+    (_TYPE_TEXT, 'email',       4, _FLAG_NONE),
     (_TYPE_TEXT, 'create',     4, _FLAG_NONE),
-    (_TYPE_TEXT, 'join',       4, _FLAG_NONE),
-    (_TYPE_TEXT, 'get involved',       4, _FLAG_NONE),
+    (_TYPE_TEXT, 'petition',       4, _FLAG_NONE),
+    (_TYPE_TEXT, 'connect',       4, _FLAG_NONE),
+    (_TYPE_TEXT, 'contact',       4, _FLAG_NONE),
 
     # articles (sometimes sign-up links are on these pages...)
     (_TYPE_HREF, '/article', 3, _FLAG_NONE),
@@ -60,7 +65,8 @@ _LINK_TEXT_BLACKLIST = ['unsubscribe', 'mobile', 'phone']
 _KEYWORDS_EMAIL  = ['email', 'e-mail', 'subscribe', 'newsletter']
 _KEYWORDS_EMAIL_BLACKLIST = ['contact us', 'contact me', 'message', 'subject', 'your message', 'comment']
 _KEYWORDS_SUBMIT = ['submit', 'sign up', 'sign-up', 'signup', 'sign me up', 'subscribe', 'register', 'join', 'i\'m in']
-_KEYWORDS_SELECT = ['yes', 'ny', 'new york', 'united states', 'usa', '1990']
+_KEYWORDS_SELECT = ['yes', 'ny', 'new york', 'united states', 'usa', '1990', 'english']
+_DOMAIN_EXCEPTIONS = ['actionnetwork.org', 'mailchi.mp', 'myngp.com', 'bsd.net', 'webaction.org', 'ngpvan.com', 'actnow.io', 'myngp.com', 'list-manage.com', 'wiredforchange.com', 'ipetitions.com', 'eepurl.com']
 
 # Other constants
 _PAGE_LOAD_TIME = 7  # time to wait for pages to load (in seconds)
@@ -243,7 +249,7 @@ def _is_internal_link(href, url, ps1=None):
 
 def _whitelisted_links(href, url):
     """Returns whether the given link is whitelisted."""
-    return domain_utils.get_ps_plus_1(urljoin(url, href)) in ['actionnetwork.org', 'mailchi.mp', 'myngp.com', 'ngpvan.com']
+    return domain_utils.get_ps_plus_1(urljoin(url, href)) in _DOMAIN_EXCEPTIONS
 
 def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
     """Finds and fills a form, and returns True if accomplished."""
@@ -667,7 +673,10 @@ def _form_fill_and_submit(form, user_info, webdriver, clear, browser_params, man
             # check anything/everything
             if input_field.is_displayed():
                 if not input_field.is_selected():
-                    input_field.click()
+                    try:
+                        input_field.click()
+                    except:
+                        webdriver.execute_script('return arguments[0].click()', input_field)
             else:
                 try:
                     checked = webdriver.execute_script('return arguments[0].checked', input_field)
@@ -709,6 +718,19 @@ def _form_fill_and_submit(form, user_info, webdriver, clear, browser_params, man
             if _element_contains_text(button, _KEYWORDS_SUBMIT):
                 submit_button = button
                 break
+
+    # Check for 'div' tags that are buttons
+    if submit_button is None:
+        div_buttons = form.find_elements_by_xpath('.//div[@role="button"]')
+        for dbutton in div_buttons:
+            if not dbutton.is_displayed():
+                continue
+
+            role = dbutton.get_attribute('role').lower()
+            if role is not None and role == 'button':
+                if _element_contains_text(dbutton, _KEYWORDS_SUBMIT):
+                    submit_button = dbutton
+                    break
 
     # fill in 'select' fields
     select_fields = form.find_elements_by_tag_name('select')
@@ -754,7 +776,7 @@ def _form_fill_and_submit(form, user_info, webdriver, clear, browser_params, man
 
 def _element_contains_text(element, text):
     """Scans various element attributes for the given text."""
-    attributes = ['name', 'class', 'id', 'placeholder', 'value', 'for', 'title', 'innerHTML']
+    attributes = ['name', 'class', 'id', 'placeholder', 'value', 'for', 'title', 'innerHTML', 'aria-label']
     text_list = text if type(text) is list else [text]
     for s in text_list:
         for attr in attributes:
@@ -789,7 +811,7 @@ def _dismiss_dialog(webdriver, container):
 def _check_form_blacklist(form):
     """Checks whether the form should be blacklisted and ignored."""
     form_text = []
-    for line in form.get_attribute('innerText').lower().split('\n'):
+    for line in form.text.lower().split('\n'):
         form_text.append(re.sub('[^A-Za-z ]', '', line).strip())
 
     for s in _KEYWORDS_EMAIL_BLACKLIST:

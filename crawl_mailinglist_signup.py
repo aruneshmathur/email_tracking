@@ -21,7 +21,7 @@ def get_email(url, site_title):
 
 # Visits the sites
 def crawl_site(site, manager, email_producer):
-    command_sequence = CommandSequence.CommandSequence(site)
+    command_sequence = CommandSequence.CommandSequence(site, reset=True)
     command_sequence.fill_forms(email_producer=email_producer, num_links=3,
                                 timeout=120, page_timeout=8, debug=True)
     manager.execute_command_sequence(command_sequence)
