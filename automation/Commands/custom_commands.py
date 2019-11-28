@@ -39,6 +39,7 @@ _LINK_TEXT_RANK = [
     (_TYPE_TEXT, 'take action',       5, _FLAG_NONE),
     (_TYPE_TEXT, 'get involved',       5, _FLAG_NONE),
     (_TYPE_TEXT, 'get engaged',       5, _FLAG_NONE),
+    (_TYPE_TEXT, 'volunteer',   4, _FLAG_NONE),
     (_TYPE_TEXT, 'register',   4, _FLAG_NONE),
     (_TYPE_TEXT, 'email',       4, _FLAG_NONE),
     (_TYPE_TEXT, 'create',     4, _FLAG_NONE),
@@ -96,7 +97,7 @@ def _get_user_info(email):
         'state': 'New York',
     }
 
-def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
+def fill_forms(url, user_data, num_links, page_timeout, debug, visit_id,
                webdriver, proxy_queue, browser_params, manager_params, extension_socket):
     """Finds a newsletter form on the page. If not found, visits <num_links>
     internal links and scans those pages for a form. Submits the form if found.
@@ -115,7 +116,7 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
     if debug:
         save_screenshot(str(visit_id) + '_landing_page', webdriver, browser_params, manager_params)
 
-    if _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
+    if _find_and_fill_form(webdriver, user_data, visit_id, debug, browser_params, manager_params, logger):
         if debug: logger.debug('Done searching and submitting forms, exiting')
         return
 
@@ -201,7 +202,7 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
                 bot_mitigation(webdriver)
 
             # find newsletter form
-            if _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
+            if _find_and_fill_form(webdriver, user_data, visit_id, debug, browser_params, manager_params, logger):
                 if debug: logger.debug('Found and submitted newsletter form on this page')
                 return
 
@@ -224,7 +225,7 @@ def fill_forms(url, email_producer, num_links, page_timeout, debug, visit_id,
                         wait_until_loaded(webdriver, _PAGE_LOAD_TIME)
 
                         # find newsletter form
-                        if _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
+                        if _find_and_fill_form(webdriver, user_data, visit_id, debug, browser_params, manager_params, logger):
                             if debug: logger.debug('Found and submitted newsletter form in a popup on this page')
                             form_found_in_popup = True
 
@@ -251,7 +252,7 @@ def _whitelisted_links(href, url):
     """Returns whether the given link is whitelisted."""
     return domain_utils.get_ps_plus_1(urljoin(url, href)) in _DOMAIN_EXCEPTIONS
 
-def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_params, manager_params, logger):
+def _find_and_fill_form(webdriver, user_data, visit_id, debug, browser_params, manager_params, logger):
     """Finds and fills a form, and returns True if accomplished."""
     current_url = webdriver.current_url
     current_site_title = webdriver.title.encode('ascii', 'replace')
@@ -343,8 +344,8 @@ def _find_and_fill_form(webdriver, email_producer, visit_id, debug, browser_para
     elif debug:
         dump_page_source(debug_page_source_initial, webdriver, browser_params, manager_params)
 
-    email = email_producer(current_url, current_site_title)
-    user_info = _get_user_info(email)
+    email = user_data['email']
+    user_info = user_data
     _form_fill_and_submit(newsletter_form, user_info, webdriver, True, browser_params, manager_params, debug_form_pre_initial if debug else None)
     logger.info('Submitted form on [%s] with email [%s]', current_url, email)
     time.sleep(_FORM_SUBMIT_SLEEP)
