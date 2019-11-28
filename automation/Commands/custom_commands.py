@@ -347,7 +347,7 @@ def _find_and_fill_form(webdriver, user_data, visit_id, debug, browser_params, m
     email = user_data['email']
     user_info = user_data
     _form_fill_and_submit(newsletter_form, user_info, webdriver, True, browser_params, manager_params, debug_form_pre_initial if debug else None)
-    logger.info('Submitted form on [%s] with email [%s]', current_url, email)
+    logger.info('Submitted form on [%s] with email [%s] on visit_id [%d]', current_url, email, visit_id)
     time.sleep(_FORM_SUBMIT_SLEEP)
     _dismiss_alert(webdriver)
 
@@ -378,7 +378,7 @@ def _find_and_fill_form(webdriver, user_data, visit_id, debug, browser_params, m
                             logger.debug('Found a newsletter form in another window')
                         _form_fill_and_submit(follow_up_form, user_info, webdriver, True, browser_params, manager_params, debug_form_pre_followup if debug else None)
 
-                        logger.info('Submitted form on [%s] with email [%s]', webdriver.current_url, email)
+                        logger.info('Submitted form on [%s] with email [%s] on visit_id [%d]', webdriver.current_url, email, visit_id)
 
                         time.sleep(_FORM_SUBMIT_SLEEP)
                         _dismiss_alert(webdriver)
@@ -399,7 +399,7 @@ def _find_and_fill_form(webdriver, user_data, visit_id, debug, browser_params, m
 
             _form_fill_and_submit(follow_up_form, user_info, webdriver, True, browser_params, manager_params, debug_form_pre_followup if debug else None)
 
-            logger.info('Submitted form on [%s] with email [%s]', webdriver.current_url, email)
+            logger.info('Submitted form on [%s] with email [%s] on visit_id [%d]', webdriver.current_url, email, visit_id)
 
             time.sleep(_FORM_SUBMIT_SLEEP)
             _dismiss_alert(webdriver)
